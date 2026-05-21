@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 60" width="900" height="60">
+  <defs>
+    <linearGradient id="panel-p" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#0d0d0d" stop-opacity="0"/>
+      <stop offset="10%"  stop-color="#170d00" stop-opacity="1"/>
+      <stop offset="50%"  stop-color="#221400" stop-opacity="1"/>
+      <stop offset="90%"  stop-color="#170d00" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#0d0d0d" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="glass-p" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="40%"  stop-color="#ffffff" stop-opacity="0.02"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="gold-p" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#FFD700" stop-opacity="0"/>
+      <stop offset="15%"  stop-color="#FFD700" stop-opacity="1"/>
+      <stop offset="85%"  stop-color="#FFD700" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#FFD700" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="gold-bottom-p" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#FFD700" stop-opacity="0"/>
+      <stop offset="15%"  stop-color="#FFD700" stop-opacity="0.3"/>
+      <stop offset="85%"  stop-color="#FFD700" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#FFD700" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="glow-p" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#FFD700" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#FFD700" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="8" width="900" height="44" rx="3" fill="url(#panel-p)"/>
+  <rect x="0" y="8" width="900" height="44" rx="3" fill="url(#glass-p)"/>
+  <rect x="0" y="8" width="900" height="44" rx="3" fill="url(#glow-p)"/>
+  <rect x="0" y="8" width="900" height="1.5" fill="url(#gold-p)"/>
+  <rect x="0" y="50.5" width="900" height="1" fill="url(#gold-bottom-p)"/>
+
+  <rect x="108" y="29.5" width="60" height="0.8" fill="#FFD700" opacity="0.6"/>
+  <rect x="732" y="29.5" width="60" height="0.8" fill="#FFD700" opacity="0.6"/>
+  <polygon points="103,29.5 107.5,25 112,29.5 107.5,34" fill="#FFD700" opacity="0.9"/>
+  <polygon points="788,29.5 792.5,25 797,29.5 792.5,34" fill="#FFD700" opacity="0.9"/>
+
+  <text x="450" y="30" text-anchor="middle" dominant-baseline="middle"
+    fill="#FFD700"
+    font-family="'Courier New', Courier, monospace"
+    font-size="12"
+    font-weight="700"
+    letter-spacing="8">PROJECTS</text>
+</svg>
