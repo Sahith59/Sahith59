@@ -1,74 +1,95 @@
 #!/usr/bin/env python3
-"""Photo -> ASCII portrait for the profile SVG (24 rows x <=43 cols),
-plus a PNG preview renderer so likeness can be checked visually.
+"""Photo -> ASCII portrait for the profile SVG.
 
-usage: ascii_convert.py <photo> [crop_l crop_t crop_r crop_b] [gamma] [invert01]
-Char cell is ~8.8x20px, so sampling corrects for the 2.27 aspect.
+High-res grid: 74 cols x 56 rows rendered at 8px/9px line-height in the SVG
+(74 * 4.8px Menlo advance + 15px margin stays left of the x=390 info column).
+
+Emits two files:
+  ascii_art_light.txt  ink mapping   (dark pixels -> dense glyphs)
+  ascii_art_dark.txt   photographic  (bright pixels -> dense glyphs)
+so both themes read as a positive image, never a negative.
+
+usage: ascii_convert.py <photo> [crop_l crop_t crop_r crop_b] [gamma]
 """
+import os
 import sys
 from PIL import Image, ImageOps, ImageDraw, ImageFont, ImageFilter
 
-COLS, ROWS = 38, 24  # 38*9.6px (Menlo fallback) + 15px margin stays left of the x=390 info column
-CELL_W, CELL_H = 8.8, 20.0
-# dark -> light glyph ramp (Andrew6rant-ish texture)
-RAMP = '@@%#MNHgmwpbkhaoejix|(;:,. '
+HERE = os.path.dirname(os.path.abspath(__file__))
+COLS, ROWS = 74, 56
+# glyph ramp indexed by DENSITY (sparse -> dense)
+RAMP = ' .,:;i|(xoeajhkbdpwmgUXHNM#%@@'
 
-def to_ascii(path, crop=None, gamma=1.0, invert=False):
+BG_THRESHOLD = 238  # segmentation leaves soft blended edges; treat near-white as background
+
+def luminance_grid(path, crop=None, gamma=1.0):
     img = Image.open(path).convert('L')
     if crop:
         img = img.crop(crop)
-    img = img.filter(ImageFilter.UnsharpMask(radius=3, percent=120))
-    # levels from person pixels only (background is pure white after segmentation)
-    person = sorted(p for p in img.getdata() if p < 245)
-    lo = person[int(len(person) * 0.04)]
-    hi = person[int(len(person) * 0.92)]
-    # resample honoring char cell aspect
+    img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=80))
+    # gentle stretch from person pixels only; preserves the photo's tonal ordering
+    person = sorted(p for p in img.getdata() if p < BG_THRESHOLD)
+    lo = person[int(len(person) * 0.02)]
+    hi = person[int(len(person) * 0.97)]
     img = img.resize((COLS, ROWS), Image.LANCZOS)
     px = img.load()
-    lines = []
+    grid = []
     for r in range(ROWS):
-        line = ''
+        row = []
         for c in range(COLS):
             raw = px[c, r]
-            if raw >= 245:
-                v = 1.0  # background stays empty
-            else:
-                v = min(1.0, max(0.0, (raw - lo) / max(1, hi - lo)))
-                # S-curve: crush darks (hair, lenses), lift skin midtones
-                if v < 0.35:
-                    v = v * 0.5
-                else:
-                    v = 0.175 + 0.825 * ((v - 0.35) / 0.65) ** gamma
-                v = min(v, 0.96)  # person pixels never vanish entirely
-            if invert:
-                v = 1.0 - v
-            idx = min(len(RAMP) - 1, int(v * len(RAMP)))
+            if raw >= BG_THRESHOLD:
+                row.append(None)  # background: always empty
+                continue
+            v = min(1.0, max(0.0, (raw - lo) / max(1, hi - lo))) ** gamma
+            row.append(v)
+        grid.append(row)
+    return grid
+
+# dark mode lifts midtones so shaded skin stays visible on a dark card;
+# build_svgs.py applies the same constant to the shade levels
+DARK_DISPLAY_GAMMA = 0.55
+
+def to_glyphs(grid, photographic):
+    lines = []
+    for row in grid:
+        line = ''
+        for v in row:
+            if v is None:
+                line += ' '
+                continue
+            density = v ** DARK_DISPLAY_GAMMA if photographic else 1.0 - v
+            density = max(density, 0.05)  # person pixels never vanish entirely
+            idx = min(len(RAMP) - 1, int(density * len(RAMP)))
             line += RAMP[idx]
         lines.append(line.rstrip())
     return lines
 
-def render_preview(lines, out_png, dark=True):
-    fg, bg = ('#c9d1d9', '#161b22') if dark else ('#24292f', '#f6f8fa')
-    W, H = int(COLS * 9.7) + 30, ROWS * int(CELL_H) + 30  # Menlo 16px advance ~9.6px
+def render_preview(lines, out_png, dark):
+    fg, bg = ('#e6edf3', '#0d1117') if dark else ('#1f2328', '#ffffff')
+    # 2x scale for inspection (16px font, 18px line height)
+    W, H = int(COLS * 9.7) + 30, ROWS * 18 + 30
     img = Image.new('RGB', (W, H), bg)
     d = ImageDraw.Draw(img)
-    try:
-        font = ImageFont.truetype('/System/Library/Fonts/Menlo.ttc', 16)
-    except OSError:
-        font = ImageFont.load_default()
+    font = ImageFont.truetype('/System/Library/Fonts/Menlo.ttc', 16)
     for i, line in enumerate(lines):
-        d.text((15, 10 + i * int(CELL_H)), line, fill=fg, font=font)
+        d.text((15, 10 + i * 18), line, fill=fg, font=font)
     img.save(out_png)
 
 if __name__ == '__main__':
+    import json
     photo = sys.argv[1]
-    crop = None
-    if len(sys.argv) >= 6:
-        crop = tuple(int(x) for x in sys.argv[2:6])
+    crop = tuple(int(x) for x in sys.argv[2:6]) if len(sys.argv) >= 6 else None
     gamma = float(sys.argv[6]) if len(sys.argv) > 6 else 1.0
-    lines = to_ascii(photo, crop, gamma)
-    with open('ascii_art.txt', 'w') as f:
-        f.write('\n'.join(lines))
-    render_preview(lines, 'ascii_preview_dark.png', dark=True)
-    render_preview(lines, 'ascii_preview_light.png', dark=False)
-    print('\n'.join(lines))
+    grid = luminance_grid(photo, crop, gamma)
+    # shade map: per-cell raw luminance in 0..255 (null = background);
+    # build_svgs.py quantizes per theme (dark applies DARK_DISPLAY_GAMMA)
+    shades = [[None if v is None else int(v * 255) for v in row] for row in grid]
+    with open(os.path.join(HERE, 'ascii_shade.json'), 'w') as f:
+        json.dump(shades, f)
+    for name, photographic, dark in (('light', False, False), ('dark', True, True)):
+        lines = to_glyphs(grid, photographic)
+        with open(os.path.join(HERE, f'ascii_art_{name}.txt'), 'w') as f:
+            f.write('\n'.join(lines))
+        render_preview(lines, os.path.join(HERE, f'ascii_preview_{name}.png'), dark)
+    print('wrote ascii_art_{light,dark}.txt + ascii_shade.json + previews')
