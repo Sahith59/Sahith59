@@ -19,8 +19,8 @@ REPO = os.path.dirname(HERE)
 
 LINE_WIDTH = 60
 VALUE_COL = 28          # 0-indexed char column where every kv value starts
-HEIGHT = 550            # 26 info rows: y=30..530 step 20
-ROWS = list(range(30, 531, 20))
+HEIGHT = 630            # 30 info rows: y=30..610 step 20
+ROWS = list(range(30, 611, 20))
 
 # Monochrome: grayscale everything, single subtle terminal-green accent
 THEMES = {
@@ -133,12 +133,16 @@ def info_lines():
     out.append(kv(nxt(), ['Host'], 'FedEx Express'))
     out.append(kv(nxt(), ['Kernel'], 'Machine Learning Engineer'))
     out.append(kv(nxt(), ['IDE'], 'VSCode 1.122.1, Cursor'))
+    out.append(kv(nxt(), ['Education'], 'M.S. Computer Science, GSU'))
+    out.append(kv(nxt(), ['Award'], 'FedEx Innovation Award'))
     out.append(blank(nxt()))
     out.append(kv(nxt(), ['Languages', 'Programming'], 'Python, SQL, Java, TypeScript'))
     out.append(kv(nxt(), ['Languages', 'Real'], LANG_REAL))
     out.append(blank(nxt()))
-    out.append(kv(nxt(), ['Stack', 'ML'], 'PyTorch, TensorFlow, HuggingFace'))
-    out.append(kv(nxt(), ['Stack', 'Agents'], 'LangGraph, LangChain, RAG'))
+    out.append(kv(nxt(), ['Stack', 'ML'], 'PyTorch, TensorFlow, XGBoost'))
+    out.append(kv(nxt(), ['Stack', 'LLM'], 'HuggingFace, RAG, Fine-Tuning'))
+    out.append(kv(nxt(), ['Stack', 'Agents'], 'LangGraph, LangChain, Ollama'))
+    out.append(kv(nxt(), ['Stack', 'Data'], 'Databricks, Snowflake, Spark'))
     out.append(kv(nxt(), ['Stack', 'Infra'], 'Docker, AWS, GCP, Redis, FastAPI'))
     out.append(blank(nxt()))
     out.append(kv(nxt(), ['Hobbies', 'Software'], 'MCP Servers, Building Cool Stuff'))
@@ -158,7 +162,7 @@ def info_lines():
 def load_ascii(filename):
     with open(os.path.join(HERE, filename)) as f:
         lines = f.read().rstrip('\n').split('\n')
-    assert len(lines) <= 56, f'ASCII art has {len(lines)} lines, max 56'
+    assert len(lines) <= 64, f'ASCII art has {len(lines)} lines, max 64'
     for i, l in enumerate(lines):
         assert len(l) <= 74, f'ASCII line {i+1} is {len(l)} chars, max 74'
     return lines

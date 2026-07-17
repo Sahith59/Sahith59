@@ -26,11 +26,12 @@ let sx = ciImage.extent.width / maskImage.extent.width
 let sy = ciImage.extent.height / maskImage.extent.height
 maskImage = maskImage.transformed(by: CGAffineTransform(scaleX: sx, y: sy))
 
-// composite: person over white background using the mask
-let white = CIImage(color: .white).cropped(to: ciImage.extent)
+// composite: person over transparent background, mask becomes the alpha
+// channel so consumers can distinguish background from bright person pixels
+let clear = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 0)).cropped(to: ciImage.extent)
 let blend = CIFilter(name: "CIBlendWithMask", parameters: [
     kCIInputImageKey: ciImage,
-    kCIInputBackgroundImageKey: white,
+    kCIInputBackgroundImageKey: clear,
     kCIInputMaskImageKey: maskImage,
 ])!
 let output = blend.outputImage!

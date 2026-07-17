@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Photo -> ASCII portrait for the profile SVG.
 
-High-res grid: 74 cols x 56 rows rendered at 8px/9px line-height in the SVG
+Input must be the RGBA output of segment.swift: the alpha channel is the
+person mask, so bright person pixels (teeth, highlights) are never mistaken
+for background.
+
+High-res grid: 74 cols x 64 rows rendered at 8px/9px line-height in the SVG
 (74 * 4.8px Menlo advance + 15px margin stays left of the x=390 info column).
 
 Emits two files:
@@ -9,39 +13,41 @@ Emits two files:
   ascii_art_dark.txt   photographic  (bright pixels -> dense glyphs)
 so both themes read as a positive image, never a negative.
 
-usage: ascii_convert.py <photo> [crop_l crop_t crop_r crop_b] [gamma]
+usage: ascii_convert.py <photo_rgba> [crop_l crop_t crop_r crop_b] [gamma]
 """
 import os
 import sys
 from PIL import Image, ImageOps, ImageDraw, ImageFont, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-COLS, ROWS = 74, 56
+COLS, ROWS = 74, 64
 # glyph ramp indexed by DENSITY (sparse -> dense)
 RAMP = ' .,:;i|(xoeajhkbdpwmgUXHNM#%@@'
 
-BG_THRESHOLD = 238  # segmentation leaves soft blended edges; treat near-white as background
-
 def luminance_grid(path, crop=None, gamma=1.0):
-    img = Image.open(path).convert('L')
+    rgba = Image.open(path).convert('RGBA')
     if crop:
-        img = img.crop(crop)
-    img = img.filter(ImageFilter.UnsharpMask(radius=2, percent=80))
+        rgba = rgba.crop(crop)
+    alpha = rgba.getchannel('A')
+    # flatten person over white so edge sharpening has a stable field
+    white = Image.new('L', rgba.size, 255)
+    lum = Image.composite(rgba.convert('L'), white, alpha)
+    lum = lum.filter(ImageFilter.UnsharpMask(radius=2, percent=80))
     # gentle stretch from person pixels only; preserves the photo's tonal ordering
-    person = sorted(p for p in img.getdata() if p < BG_THRESHOLD)
+    person = sorted(l for l, a in zip(lum.getdata(), alpha.getdata()) if a >= 200)
     lo = person[int(len(person) * 0.02)]
     hi = person[int(len(person) * 0.97)]
-    img = img.resize((COLS, ROWS), Image.LANCZOS)
-    px = img.load()
+    lum = lum.resize((COLS, ROWS), Image.LANCZOS)
+    alpha = alpha.resize((COLS, ROWS), Image.LANCZOS)
+    lpx, apx = lum.load(), alpha.load()
     grid = []
     for r in range(ROWS):
         row = []
         for c in range(COLS):
-            raw = px[c, r]
-            if raw >= BG_THRESHOLD:
+            if apx[c, r] < 128:
                 row.append(None)  # background: always empty
                 continue
-            v = min(1.0, max(0.0, (raw - lo) / max(1, hi - lo))) ** gamma
+            v = min(1.0, max(0.0, (lpx[c, r] - lo) / max(1, hi - lo))) ** gamma
             row.append(v)
         grid.append(row)
     return grid
