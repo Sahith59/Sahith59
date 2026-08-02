@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
 """Generates dark_mode.svg + light_mode.svg for Sahith59/Sahith59.
 
-Info column: values left-aligned at a fixed column (col 28 of a 60-char
-line) so the panel reads as a clean two-column table. Dynamic stat fields
-carry ids that today.py rewrites daily (stats keep dot-justified budgets
-so those lines stay width-stable).
+Info column: bold monospace, values left-aligned at a fixed column (col 16
+of a 60-char line) so the panel reads as a clean two-column table. Dynamic
+stat fields carry ids that today.py rewrites daily (stats keep dot-justified
+budgets so those lines stay width-stable).
 
-Portrait: 74x56 glyph grid rendered at 8px (own font-size), one file per
-theme so both render as a photographic positive.
+Portrait: 74x64 glyph grid rendered at 8px (own font-size) from the files
+in this directory, one glyph file per theme so both render as a
+photographic positive.
+
+Accent: single gold (Iron Man nod) with a pulsing arc-reactor dot beside
+the header; everything else grayscale.
 """
-import datetime
-from dateutil import relativedelta
 import json
 import os
 
@@ -18,16 +20,17 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 
 LINE_WIDTH = 60
-VALUE_COL = 28          # 0-indexed char column where every kv value starts
+VALUE_COL = 16          # 0-indexed char column where every kv value starts
 HEIGHT = 630            # 30 info rows: y=30..610 step 20
 ROWS = list(range(30, 611, 20))
 
-# Monochrome: grayscale everything, single subtle terminal-green accent
+# Monochrome: grayscale everything, single gold accent
 THEMES = {
     'dark_mode.svg': {
         'bg': '#0d1117', 'fg': '#e6edf3',
         'key': '#7d8590', 'value': '#e6edf3', 'cc': '#2d333b',
-        'add': '#3fb950', 'del': '#7d8590', 'accent': '#3fb950',
+        'add': '#e3b341', 'del': '#7d8590', 'accent': '#e3b341',
+        'quote': '#57606a',
         'ascii_file': 'ascii_art_dark.txt',
         'display_gamma': 0.55,  # keep in sync with ascii_convert.DARK_DISPLAY_GAMMA
         # luminance level 0 (darkest) -> 7 (brightest) on a dark card
@@ -37,7 +40,8 @@ THEMES = {
     'light_mode.svg': {
         'bg': '#ffffff', 'fg': '#1f2328',
         'key': '#656d76', 'value': '#1f2328', 'cc': '#d0d7de',
-        'add': '#1a7f37', 'del': '#656d76', 'accent': '#1a7f37',
+        'add': '#9a6700', 'del': '#656d76', 'accent': '#9a6700',
+        'quote': '#8b949e',
         'ascii_file': 'ascii_art_light.txt',
         'display_gamma': 1.0,
         # same level order: dark tones get dark ink on a white card
@@ -48,13 +52,6 @@ THEMES = {
 
 def esc(s):
     return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-
-def age_now():
-    diff = relativedelta.relativedelta(datetime.datetime.today(), datetime.datetime(2004, 5, 9))
-    s = 's' if diff.years != 1 else ''
-    m = 's' if diff.months != 1 else ''
-    d = 's' if diff.days != 1 else ''
-    return f'{diff.years} year{s}, {diff.months} month{m}, {diff.days} day{d}'
 
 def dots_str(just_len):
     """Mirror of today.py justify_format spacing rules (stats fields only)."""
@@ -68,22 +65,25 @@ def header(y, title):
     return (f'<tspan x="390" y="{y}" class="accent">{esc(title)}</tspan>'
             f'<tspan class="cc"> {dashes}</tspan>'), LINE_WIDTH
 
-def kv(y, keys, value, value_id=None):
-    """'. Key.Sub: ... value' — value always starts at VALUE_COL."""
-    key_txt = '.'.join(keys)
-    n = VALUE_COL - 2 - len(key_txt) - 1 - 2
-    assert n >= 2, f'key too long at y={y}: {key_txt}'
+def kv(y, key, value, value_id=None):
+    """'. Key: ... value' — value always starts at VALUE_COL."""
+    n = VALUE_COL - 2 - len(key) - 1 - 2
+    assert n >= 2, f'key too long at y={y}: {key}'
     assert len(value) <= LINE_WIDTH - VALUE_COL, f'value too long at y={y}: {value}'
     dots = ' ' + '.' * n + ' '
-    key_ts = '.'.join(f'<tspan class="key">{esc(k)}</tspan>' for k in keys)
     id_val = f' id="{value_id}"' if value_id else ''
-    line = (f'<tspan x="390" y="{y}" class="cc">. </tspan>{key_ts}:'
+    line = (f'<tspan x="390" y="{y}" class="cc">. </tspan><tspan class="key">{esc(key)}</tspan>:'
             f'<tspan class="cc">{dots}</tspan>'
             f'<tspan class="value"{id_val}>{esc(value)}</tspan>')
     return line, VALUE_COL + len(value)
 
 def blank(y):
     return f'<tspan x="390" y="{y}" class="cc">. </tspan>', 2
+
+def quote_line(y, text):
+    assert len(text) <= LINE_WIDTH, f'quote too long: {len(text)}'
+    return (f'<tspan x="390" y="{y}" class="quote" font-style="italic">{esc(text)}</tspan>',
+            len(text))
 
 def field(fid, value, budget):
     """Dynamic stat field: dots tspan (id=fid_dots) + value tspan (id=fid)."""
@@ -119,44 +119,45 @@ def stats_loc(y, loc, loc_add, loc_del):
     return line, 2 + 14 + l1 + 3 + len(add_v) + 4 + len(del_d) + len(del_v) + 4
 
 # ---------------------------------------------------------------- content --
-LANG_REAL = os.environ.get('LANG_REAL', 'English')
-SEEDS = dict(repos=53, contrib=54, stars=11, commits=656, followers=1,
-             loc=1148848, loc_add=1221785, loc_del=72937)
+SEEDS = dict(repos=51, contrib=52, stars=11, commits=222, followers=1,
+             loc=966500, loc_add=1026391, loc_del=59891)
+
+QUOTE = '"Sometimes you gotta run before you can walk." — Tony Stark'
 
 def info_lines():
     y = iter(ROWS)
     out = []
     def nxt(): return next(y)
     out.append(header(nxt(), 'sahith@thummala'))
-    out.append(kv(nxt(), ['OS'], 'macOS 26.5, Linux'))
-    out.append(kv(nxt(), ['Uptime'], age_now(), 'age_data'))
-    out.append(kv(nxt(), ['Host'], 'FedEx Express'))
-    out.append(kv(nxt(), ['Kernel'], 'Machine Learning Engineer'))
-    out.append(kv(nxt(), ['IDE'], 'VSCode 1.122.1, Cursor'))
-    out.append(kv(nxt(), ['Education'], 'M.S. Computer Science, GSU'))
-    out.append(kv(nxt(), ['Award'], 'FedEx Innovation Award'))
+    out.append(kv(nxt(), 'Role', 'Machine Learning Engineer'))
+    out.append(kv(nxt(), 'Company', 'FedEx Express'))
+    out.append(kv(nxt(), 'Education', 'M.S. Computer Science, GSU'))
+    out.append(kv(nxt(), 'Award', 'FedEx Innovation Award'))
+    out.append(kv(nxt(), 'Focus', 'GenAI, Agents, Production ML'))
     out.append(blank(nxt()))
-    out.append(kv(nxt(), ['Languages', 'Programming'], 'Python, SQL, Java, TypeScript'))
-    out.append(kv(nxt(), ['Languages', 'Real'], LANG_REAL))
+    nxt()  # skip row
+    out.append(header(nxt(), '- Stack'))
+    out.append(kv(nxt(), 'Languages', 'Python, SQL, Java, TypeScript'))
+    out.append(kv(nxt(), 'ML', 'PyTorch, TensorFlow, XGBoost'))
+    out.append(kv(nxt(), 'LLM', 'HuggingFace, RAG, Fine-Tuning'))
+    out.append(kv(nxt(), 'Agents', 'LangGraph, LangChain, Ollama, MCP'))
+    out.append(kv(nxt(), 'Data', 'Databricks, Snowflake, Spark'))
+    out.append(kv(nxt(), 'Infra', 'Docker, AWS, GCP, Redis, FastAPI'))
     out.append(blank(nxt()))
-    out.append(kv(nxt(), ['Stack', 'ML'], 'PyTorch, TensorFlow, XGBoost'))
-    out.append(kv(nxt(), ['Stack', 'LLM'], 'HuggingFace, RAG, Fine-Tuning'))
-    out.append(kv(nxt(), ['Stack', 'Agents'], 'LangGraph, LangChain, Ollama'))
-    out.append(kv(nxt(), ['Stack', 'Data'], 'Databricks, Snowflake, Spark'))
-    out.append(kv(nxt(), ['Stack', 'Infra'], 'Docker, AWS, GCP, Redis, FastAPI'))
-    out.append(blank(nxt()))
-    out.append(kv(nxt(), ['Hobbies', 'Software'], 'MCP Servers, Building Cool Stuff'))
-    out.append(kv(nxt(), ['Hobbies', 'Real'], 'Physics, Robotics'))
     nxt()  # skip row
     out.append(header(nxt(), '- Contact'))
-    out.append(kv(nxt(), ['Email', 'Personal'], 'tsahith59@gmail.com'))
-    out.append(kv(nxt(), ['Phone', 'Personal'], '404-861-6382'))
-    out.append(kv(nxt(), ['LinkedIn'], 'sahith-reddy-thummala59'))
+    out.append(kv(nxt(), 'Email', 'tsahith59@gmail.com'))
+    out.append(kv(nxt(), 'Phone', '404-861-6382'))
+    out.append(kv(nxt(), 'LinkedIn', 'linkedin.com/in/sahith-reddy-thummala59'))
+    out.append(kv(nxt(), 'GitHub', 'github.com/Sahith59'))
+    out.append(blank(nxt()))
     nxt()  # skip row
     out.append(header(nxt(), '- GitHub Stats'))
     out.append(stats_repos(nxt(), SEEDS['repos'], SEEDS['contrib'], SEEDS['stars']))
     out.append(stats_commits(nxt(), SEEDS['commits'], SEEDS['followers']))
     out.append(stats_loc(nxt(), SEEDS['loc'], SEEDS['loc_add'], SEEDS['loc_del']))
+    nxt()  # skip row
+    out.append(quote_line(nxt(), QUOTE))
     return out
 
 def load_ascii(filename):
@@ -195,7 +196,6 @@ def build(theme_file, t):
     ascii_lines = load_ascii(t['ascii_file'])
     with open(os.path.join(HERE, 'ascii_shade.json')) as f:
         shades = json.load(f)
-    # portrait: own 8px bold font, 9px line height, grayscale-shaded runs
     ascii_ts = ascii_tspans(ascii_lines, shades, t['display_gamma'])
     info_ts = '\n'.join(l for l, _ in lines)
     shade_css = '\n'.join(f'.s{i} {{fill: {c};}}' for i, c in enumerate(t['shades']))
@@ -215,14 +215,19 @@ size-adjust: 109%;
 .delColor {{fill: {t['del']};}}
 .cc {{fill: {t['cc']};}}
 .accent {{fill: {t['accent']};}}
+.quote {{fill: {t['quote']};}}
 {shade_css}
 text, tspan {{white-space: pre;}}
 </style>
 <rect x="0.5" y="0.5" width="984px" height="{HEIGHT - 1}px" fill="{t['bg']}" stroke="{t['cc']}" stroke-width="1" rx="15"/>
+<circle cx="379" cy="24" r="6" fill="none" stroke="{t['accent']}" stroke-width="1" opacity="0.4"/>
+<circle cx="379" cy="24" r="3" fill="{t['accent']}">
+<animate attributeName="opacity" values="1;0.25;1" dur="2.6s" repeatCount="indefinite"/>
+</circle>
 <text x="15" y="28" fill="{t['fg']}" class="ascii" font-size="8px" font-weight="bold">
 {ascii_ts}
 </text>
-<text x="390" y="30" fill="{t['fg']}">
+<text x="390" y="30" fill="{t['fg']}" font-weight="bold">
 {info_ts}
 </text>
 </svg>'''

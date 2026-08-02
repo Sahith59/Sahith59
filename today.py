@@ -216,7 +216,9 @@ def loc_query(owner_affiliation, comment_size=0, force_cache=False, cursor=None,
         edges += request.json()['data']['user']['repositories']['edges']           # Add on to the LoC count
         return loc_query(owner_affiliation, comment_size, force_cache, request.json()['data']['user']['repositories']['pageInfo']['endCursor'], edges)
     else:
-        return cache_builder(edges + request.json()['data']['user']['repositories']['edges'], comment_size, force_cache)
+        all_edges = edges + request.json()['data']['user']['repositories']['edges']
+        all_edges = [e for e in all_edges if e.get('node')]  # drop null nodes from inaccessible repos
+        return cache_builder(all_edges, comment_size, force_cache)
 
 
 def cache_builder(edges, comment_size, force_cache, loc_add=0, loc_del=0):
@@ -299,7 +301,8 @@ def stars_counter(data):
     """
     total_stars = 0
     for node in data:
-        total_stars += node['node']['stargazers']['totalCount']
+        if node.get('node'):  # fine-grained tokens can return null nodes for inaccessible repos
+            total_stars += node['node']['stargazers']['totalCount']
     return total_stars
 
 

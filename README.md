@@ -5,4 +5,12 @@
   </picture>
 </a>
 
+<p align="center">
+  <a href="https://www.linkedin.com/in/sahith-reddy-thummala59"><b>LinkedIn</b></a>
+  &nbsp;·&nbsp;
+  <a href="mailto:tsahith59@gmail.com"><b>Email</b></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/Sahith59?tab=repositories"><b>Repositories</b></a>
+</p>
+
 <!-- Design adapted from Andrew Grant (https://github.com/Andrew6rant/Andrew6rant) -->
