@@ -15,7 +15,7 @@ import hashlib
 HEADERS = {'authorization': 'token ' + os.environ['ACCESS_TOKEN']}
 USER_NAME = os.environ.get('USER_NAME', 'Sahith59')
 BIRTHDAY = datetime.datetime(2004, 5, 9)
-QUERY_COUNT = {'user_getter': 0, 'follower_getter': 0, 'graph_repos_stars': 0, 'recursive_loc': 0, 'graph_commits': 0, 'loc_query': 0}
+QUERY_COUNT = {'user_getter': 0, 'follower_getter': 0, 'graph_repos_stars': 0, 'recursive_loc': 0, 'graph_commits': 0, 'loc_query': 0, 'spark_getter': 0}
 
 
 def daily_readme(birthday):
@@ -306,7 +306,7 @@ def stars_counter(data):
     return total_stars
 
 
-def svg_overwrite(filename, age_data, commit_data, star_data, repo_data, contrib_data, follower_data, loc_data):
+def svg_overwrite(filename, age_data, commit_data, star_data, repo_data, contrib_data, follower_data, loc_data, spark_data):
     """
     Parse SVG files and update elements with my age, commits, stars, repositories, and lines written
     """
@@ -321,6 +321,7 @@ def svg_overwrite(filename, age_data, commit_data, star_data, repo_data, contrib
     justify_format(root, 'loc_data', loc_data[2], 15)
     justify_format(root, 'loc_add', loc_data[0])
     justify_format(root, 'loc_del', loc_data[1], 7)
+    find_and_replace(root, 'spark_data', spark_data)
     tree.write(filename, encoding='utf-8', xml_declaration=True)
 
 
@@ -362,6 +363,42 @@ def commit_counter(comment_size):
     for line in data:
         total_commits += int(line.split()[2])
     return total_commits
+
+
+def spark_getter(username):
+    """
+    Returns the last 30 days of contribution counts as a 30-char block-glyph
+    sparkline for the Activity row
+    """
+    query_count('spark_getter')
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = now - datetime.timedelta(days=31)
+    query = '''
+    query($login: String!, $from: DateTime!, $to: DateTime!){
+        user(login: $login) {
+            contributionsCollection(from: $from, to: $to) {
+                contributionCalendar {
+                    weeks {
+                        contributionDays {
+                            date
+                            contributionCount
+                        }
+                    }
+                }
+            }
+        }
+    }'''
+    variables = {'login': username,
+                 'from': start.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                 'to': now.strftime('%Y-%m-%dT%H:%M:%SZ')}
+    request = simple_request(spark_getter.__name__, query, variables)
+    weeks = request.json()['data']['user']['contributionsCollection']['contributionCalendar']['weeks']
+    days = sorted((d['date'], d['contributionCount']) for w in weeks for d in w['contributionDays'])
+    counts = [c for _, c in days][-30:]
+    counts = [0] * (30 - len(counts)) + counts
+    peak = max(counts) or 1
+    blocks = '▁▂▃▄▅▆▇█'
+    return ''.join(blocks[min(7, int(c / peak * 8))] for c in counts)
 
 
 def user_getter(username):
@@ -446,12 +483,13 @@ if __name__ == '__main__':
     repo_data, repo_time = perf_counter(graph_repos_stars, 'repos', ['OWNER'])
     contrib_data, contrib_time = perf_counter(graph_repos_stars, 'repos', ['OWNER', 'COLLABORATOR', 'ORGANIZATION_MEMBER'])
     follower_data, follower_time = perf_counter(follower_getter, USER_NAME)
+    spark_data, spark_time = perf_counter(spark_getter, USER_NAME)
 
     for index in range(len(total_loc) - 1):
         total_loc[index] = '{:,}'.format(total_loc[index])  # format added, deleted, and total LOC
 
-    svg_overwrite('dark_mode.svg', age_data, commit_data, star_data, repo_data, contrib_data, follower_data, total_loc[:-1])
-    svg_overwrite('light_mode.svg', age_data, commit_data, star_data, repo_data, contrib_data, follower_data, total_loc[:-1])
+    svg_overwrite('dark_mode.svg', age_data, commit_data, star_data, repo_data, contrib_data, follower_data, total_loc[:-1], spark_data)
+    svg_overwrite('light_mode.svg', age_data, commit_data, star_data, repo_data, contrib_data, follower_data, total_loc[:-1], spark_data)
 
     print('Total GitHub GraphQL API calls:', '{:>3}'.format(sum(QUERY_COUNT.values())))
     for funct_name, count in QUERY_COUNT.items():

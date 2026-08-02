@@ -2,16 +2,19 @@
 """Generates dark_mode.svg + light_mode.svg for Sahith59/Sahith59.
 
 Info column: bold monospace, values left-aligned at a fixed column (col 16
-of a 60-char line) so the panel reads as a clean two-column table. Dynamic
-stat fields carry ids that today.py rewrites daily (stats keep dot-justified
-budgets so those lines stay width-stable).
+of a 60-char line). Dynamic stat fields carry ids that today.py rewrites
+daily (stats keep dot-justified budgets so those lines stay width-stable).
 
-Portrait: 74x64 glyph grid rendered at 8px (own font-size) from the files
-in this directory, one glyph file per theme so both render as a
-photographic positive.
+Portrait: 74x64 glyph grid rendered at 8px from the files in this
+directory, one glyph file per theme so both render as a photographic
+positive, with a breathing arc-reactor glow behind the chest.
 
-Accent: single gold (Iron Man nod) with a pulsing arc-reactor dot beside
-the header; everything else grayscale.
+Motion (SMIL only — the sole animation tech GitHub READMEs allow):
+  - HUD boot: rows reveal top-to-bottom with eased fades, settle static
+  - typewriter quote with a cursor that blinks out
+  - arc pulse beside the header + slow reactor glow
+All animations use the values="0;0;1" keyTimes pattern with begin="0s" so
+renderers without SMIL show the finished card instead of a blank one.
 """
 import json
 import os
@@ -21,8 +24,14 @@ REPO = os.path.dirname(HERE)
 
 LINE_WIDTH = 60
 VALUE_COL = 16          # 0-indexed char column where every kv value starts
-HEIGHT = 630            # 30 info rows: y=30..610 step 20
-ROWS = list(range(30, 611, 20))
+HEIGHT = 650            # 31 info rows: y=30..630 step 20
+ROWS = list(range(30, 631, 20))
+
+BOOT_START = 0.15       # s before the first row begins revealing
+BOOT_STAGGER = 0.05     # s between consecutive rows
+BOOT_FADE = 0.30        # s each row takes to fade in
+TYPE_START = 2.1        # s when the quote starts typing
+TYPE_CHAR = 0.045       # s per character
 
 # Monochrome: grayscale everything, single gold accent
 THEMES = {
@@ -30,7 +39,7 @@ THEMES = {
         'bg': '#0d1117', 'fg': '#e6edf3',
         'key': '#7d8590', 'value': '#e6edf3', 'cc': '#2d333b',
         'add': '#e3b341', 'del': '#7d8590', 'accent': '#e3b341',
-        'quote': '#8b949e',
+        'quote': '#8b949e', 'glow_opacity': '0.30',
         'ascii_file': 'ascii_art_dark.txt',
         'display_gamma': 0.55,  # keep in sync with ascii_convert.DARK_DISPLAY_GAMMA
         # luminance level 0 (darkest) -> 7 (brightest) on a dark card
@@ -41,7 +50,7 @@ THEMES = {
         'bg': '#ffffff', 'fg': '#1f2328',
         'key': '#656d76', 'value': '#1f2328', 'cc': '#d0d7de',
         'add': '#9a6700', 'del': '#656d76', 'accent': '#9a6700',
-        'quote': '#8b949e',
+        'quote': '#8b949e', 'glow_opacity': '0.14',
         'ascii_file': 'ascii_art_light.txt',
         'display_gamma': 1.0,
         # same level order: dark tones get dark ink on a white card
@@ -52,6 +61,15 @@ THEMES = {
 
 def esc(s):
     return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+def reveal_anim(delay, fade):
+    """Safe delayed fade-in: hidden from t=0, eased fade at `delay`.
+    Renderers without SMIL simply show the element (no static opacity=0)."""
+    dur = delay + fade
+    kt = round(delay / dur, 4)
+    return (f'<animate attributeName="opacity" values="0;0;1" keyTimes="0;{kt};1" '
+            f'calcMode="spline" keySplines="0 0 1 1;0.25 0.1 0.25 1" '
+            f'dur="{round(dur, 3)}s" begin="0s" fill="freeze"/>')
 
 def dots_str(just_len):
     """Mirror of today.py justify_format spacing rules (stats fields only)."""
@@ -65,7 +83,7 @@ def header(y, title):
     return (f'<tspan x="390" y="{y}" class="accent">{esc(title)}</tspan>'
             f'<tspan class="cc"> {dashes}</tspan>'), LINE_WIDTH
 
-def kv(y, key, value, value_id=None):
+def kv(y, key, value, value_id=None, value_class='value'):
     """'. Key: ... value' — value always starts at VALUE_COL."""
     n = VALUE_COL - 2 - len(key) - 1 - 2
     assert n >= 2, f'key too long at y={y}: {key}'
@@ -74,16 +92,44 @@ def kv(y, key, value, value_id=None):
     id_val = f' id="{value_id}"' if value_id else ''
     line = (f'<tspan x="390" y="{y}" class="cc">. </tspan><tspan class="key">{esc(key)}</tspan>:'
             f'<tspan class="cc">{dots}</tspan>'
-            f'<tspan class="value"{id_val}>{esc(value)}</tspan>')
+            f'<tspan class="{value_class}"{id_val}>{esc(value)}</tspan>')
     return line, VALUE_COL + len(value)
 
 def blank(y):
     return f'<tspan x="390" y="{y}" class="cc">. </tspan>', 2
 
-def quote_line(y, text):
-    assert len(text) <= LINE_WIDTH, f'quote too long: {len(text)}'
-    return (f'<tspan x="390" y="{y}" class="accent" font-style="italic">{esc(text)}</tspan>',
-            len(text))
+def typewriter(y, text):
+    """Per-character reveal + cursor that blinks four times, then fades out."""
+    assert len(text) + 1 <= LINE_WIDTH, f'quote too long: {len(text)}'
+    parts = []
+    for i, ch in enumerate(text):
+        at = TYPE_START + i * TYPE_CHAR
+        dur = at + 0.002
+        kt = round(at / dur, 5)
+        parts.append(
+            f'<tspan>{esc(ch)}'
+            f'<animate attributeName="fill-opacity" values="0;0;1" keyTimes="0;{kt};1" '
+            f'dur="{round(dur, 3)}s" begin="0s" fill="freeze"/></tspan>')
+    done = TYPE_START + len(text) * TYPE_CHAR
+    # cursor: hidden, appears at TYPE_START, blinks with the typing, four
+    # slow blinks after the text lands, then gone for good
+    blink_end = done + 2.4
+    kts = [0, TYPE_START / blink_end]
+    vals = ['0', '1']
+    t = done
+    while t < blink_end - 0.01:
+        kts += [t / blink_end, min((t + 0.3) / blink_end, 1)]
+        vals += ['0', '1']
+        t += 0.6
+    kts += [1]
+    vals += ['0']
+    kt_s = ';'.join(str(round(k, 5)) for k in kts)
+    cursor = (f'<tspan class="accent">▊'
+              f'<animate attributeName="fill-opacity" values="{";".join(vals)}" '
+              f'keyTimes="{kt_s}" calcMode="discrete" dur="{round(blink_end, 3)}s" '
+              f'begin="0s" fill="freeze"/></tspan>')
+    line = f'<tspan x="390" y="{y}" class="accent" font-style="italic">{"".join(parts)}{cursor}</tspan>'
+    return line, len(text) + 1
 
 def field(fid, value, budget):
     """Dynamic stat field: dots tspan (id=fid_dots) + value tspan (id=fid)."""
@@ -119,8 +165,8 @@ def stats_loc(y, loc, loc_add, loc_del):
     return line, 2 + 14 + l1 + 3 + len(add_v) + 4 + len(del_d) + len(del_v) + 4
 
 # ---------------------------------------------------------------- content --
-SEEDS = dict(repos=51, contrib=52, stars=11, commits=222, followers=1,
-             loc=966500, loc_add=1026391, loc_del=59891)
+SEEDS = dict(repos=58, contrib=61, stars=1, commits=815, followers=2,
+             loc=1242638, loc_add=1320297, loc_del=77659)
 
 QUOTE_TEXT = '"We\'re here to put a dent in the universe."'
 
@@ -156,8 +202,9 @@ def info_lines():
     out.append(stats_repos(nxt(), SEEDS['repos'], SEEDS['contrib'], SEEDS['stars']))
     out.append(stats_commits(nxt(), SEEDS['commits'], SEEDS['followers']))
     out.append(stats_loc(nxt(), SEEDS['loc'], SEEDS['loc_add'], SEEDS['loc_del']))
+    out.append(kv(nxt(), 'Activity', '▁' * 30, 'spark_data', value_class='addColor'))
     nxt()  # skip row
-    out.append(quote_line(nxt(), QUOTE_TEXT))
+    out.append(typewriter(nxt(), QUOTE_TEXT))
     return out
 
 def load_ascii(filename):
@@ -197,7 +244,13 @@ def build(theme_file, t):
     with open(os.path.join(HERE, 'ascii_shade.json')) as f:
         shades = json.load(f)
     ascii_ts = ascii_tspans(ascii_lines, shades, t['display_gamma'])
-    info_ts = '\n'.join(l for l, _ in lines)
+    # each info row is its own <text> so the HUD boot can reveal them in order;
+    # the typewriter row (last) manages its own per-character timing instead
+    row_texts = []
+    for i, (line, _) in enumerate(lines):
+        anim = '' if i == len(lines) - 1 else reveal_anim(BOOT_START + i * BOOT_STAGGER, BOOT_FADE)
+        row_texts.append(f'<text>{line}{anim}</text>')
+    info_ts = '\n'.join(row_texts)
     shade_css = '\n'.join(f'.s{i} {{fill: {c};}}' for i, c in enumerate(t['shades']))
     svg = f'''<?xml version='1.0' encoding='UTF-8'?>
 <svg xmlns="http://www.w3.org/2000/svg" font-family="ConsolasFallback,Consolas,monospace" width="985px" height="{HEIGHT}px" font-size="16px">
@@ -219,17 +272,28 @@ size-adjust: 109%;
 {shade_css}
 text, tspan {{white-space: pre;}}
 </style>
+<defs>
+<radialGradient id="reactor">
+<stop offset="0%" stop-color="{t['accent']}" stop-opacity="{t['glow_opacity']}"/>
+<stop offset="55%" stop-color="{t['accent']}" stop-opacity="{float(t['glow_opacity']) * 0.45:.3f}"/>
+<stop offset="100%" stop-color="{t['accent']}" stop-opacity="0"/>
+</radialGradient>
+</defs>
 <rect x="0.5" y="0.5" width="984px" height="{HEIGHT - 1}px" fill="{t['bg']}" stroke="{t['cc']}" stroke-width="1" rx="15"/>
+<circle cx="192" cy="546" r="88" fill="url(#reactor)">
+<animate attributeName="opacity" values="0.55;1;0.55" dur="5s" begin="1s" repeatCount="indefinite"/>
+</circle>
 <circle cx="379" cy="24" r="6" fill="none" stroke="{t['accent']}" stroke-width="1" opacity="0.4"/>
 <circle cx="379" cy="24" r="3" fill="{t['accent']}">
 <animate attributeName="opacity" values="1;0.25;1" dur="2.6s" repeatCount="indefinite"/>
 </circle>
 <text x="15" y="28" fill="{t['fg']}" class="ascii" font-size="8px" font-weight="bold">
 {ascii_ts}
+{reveal_anim(0.0, 0.7)}
 </text>
-<text x="390" y="30" fill="{t['fg']}" font-weight="bold">
+<g fill="{t['fg']}" font-weight="bold">
 {info_ts}
-</text>
+</g>
 </svg>'''
     with open(os.path.join(REPO, theme_file), 'w') as f:
         f.write(svg)
