@@ -30,7 +30,7 @@ THEMES = {
         'bg': '#0d1117', 'fg': '#e6edf3',
         'key': '#7d8590', 'value': '#e6edf3', 'cc': '#2d333b',
         'add': '#e3b341', 'del': '#7d8590', 'accent': '#e3b341',
-        'quote': '#57606a',
+        'quote': '#8b949e',
         'ascii_file': 'ascii_art_dark.txt',
         'display_gamma': 0.55,  # keep in sync with ascii_convert.DARK_DISPLAY_GAMMA
         # luminance level 0 (darkest) -> 7 (brightest) on a dark card
@@ -80,10 +80,12 @@ def kv(y, key, value, value_id=None):
 def blank(y):
     return f'<tspan x="390" y="{y}" class="cc">. </tspan>', 2
 
-def quote_line(y, text):
-    assert len(text) <= LINE_WIDTH, f'quote too long: {len(text)}'
-    return (f'<tspan x="390" y="{y}" class="quote" font-style="italic">{esc(text)}</tspan>',
-            len(text))
+def quote_line(y, text, attr):
+    assert len(text) + len(attr) <= LINE_WIDTH, f'quote too long: {len(text) + len(attr)}'
+    return (f'<tspan x="390" y="{y}" font-style="italic">'
+            f'<tspan class="quote">{esc(text)}</tspan>'
+            f'<tspan class="accent">{esc(attr)}</tspan></tspan>',
+            len(text) + len(attr))
 
 def field(fid, value, budget):
     """Dynamic stat field: dots tspan (id=fid_dots) + value tspan (id=fid)."""
@@ -122,7 +124,8 @@ def stats_loc(y, loc, loc_add, loc_del):
 SEEDS = dict(repos=51, contrib=52, stars=11, commits=222, followers=1,
              loc=966500, loc_add=1026391, loc_del=59891)
 
-QUOTE = '"Sometimes you gotta run before you can walk." — Tony Stark'
+QUOTE_TEXT = '"Talk is cheap. Show me the code."'
+QUOTE_ATTR = ' — Linus Torvalds'
 
 def info_lines():
     y = iter(ROWS)
@@ -157,7 +160,7 @@ def info_lines():
     out.append(stats_commits(nxt(), SEEDS['commits'], SEEDS['followers']))
     out.append(stats_loc(nxt(), SEEDS['loc'], SEEDS['loc_add'], SEEDS['loc_del']))
     nxt()  # skip row
-    out.append(quote_line(nxt(), QUOTE))
+    out.append(quote_line(nxt(), QUOTE_TEXT, QUOTE_ATTR))
     return out
 
 def load_ascii(filename):
