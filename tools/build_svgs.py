@@ -124,8 +124,8 @@ def stats_loc(y, loc, loc_add, loc_del):
 SEEDS = dict(repos=51, contrib=52, stars=11, commits=222, followers=1,
              loc=966500, loc_add=1026391, loc_del=59891)
 
-QUOTE_TEXT = '"Talk is cheap. Show me the code."'
-QUOTE_ATTR = ' — Linus Torvalds'
+QUOTE_TEXT = '"We\'re here to put a dent in the universe."'
+QUOTE_ATTR = ' — Steve Jobs'
 
 def info_lines():
     y = iter(ROWS)
