@@ -80,12 +80,10 @@ def kv(y, key, value, value_id=None):
 def blank(y):
     return f'<tspan x="390" y="{y}" class="cc">. </tspan>', 2
 
-def quote_line(y, text, attr):
-    assert len(text) + len(attr) <= LINE_WIDTH, f'quote too long: {len(text) + len(attr)}'
-    return (f'<tspan x="390" y="{y}" font-style="italic">'
-            f'<tspan class="quote">{esc(text)}</tspan>'
-            f'<tspan class="accent">{esc(attr)}</tspan></tspan>',
-            len(text) + len(attr))
+def quote_line(y, text):
+    assert len(text) <= LINE_WIDTH, f'quote too long: {len(text)}'
+    return (f'<tspan x="390" y="{y}" class="accent" font-style="italic">{esc(text)}</tspan>',
+            len(text))
 
 def field(fid, value, budget):
     """Dynamic stat field: dots tspan (id=fid_dots) + value tspan (id=fid)."""
@@ -125,7 +123,6 @@ SEEDS = dict(repos=51, contrib=52, stars=11, commits=222, followers=1,
              loc=966500, loc_add=1026391, loc_del=59891)
 
 QUOTE_TEXT = '"We\'re here to put a dent in the universe."'
-QUOTE_ATTR = ' — Steve Jobs'
 
 def info_lines():
     y = iter(ROWS)
@@ -160,7 +157,7 @@ def info_lines():
     out.append(stats_commits(nxt(), SEEDS['commits'], SEEDS['followers']))
     out.append(stats_loc(nxt(), SEEDS['loc'], SEEDS['loc_add'], SEEDS['loc_del']))
     nxt()  # skip row
-    out.append(quote_line(nxt(), QUOTE_TEXT, QUOTE_ATTR))
+    out.append(quote_line(nxt(), QUOTE_TEXT))
     return out
 
 def load_ascii(filename):
