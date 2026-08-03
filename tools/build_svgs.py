@@ -207,9 +207,10 @@ def info_lines():
     out.append(typewriter(nxt(), QUOTE_TEXT))
     return out
 
-# 'lego' (mosaic tiles, the live default) or 'ascii' (glyph portrait);
-# CRT overlays apply to both
-PORTRAIT_STYLE = os.environ.get('PORTRAIT_STYLE', 'lego')
+# 'ascii' (glyph portrait, the live default) or 'lego' (mosaic tiles);
+# CRT_FX=1 additionally layers scan lines + flicker + glitch strips
+PORTRAIT_STYLE = os.environ.get('PORTRAIT_STYLE', 'ascii')
+CRT_FX = os.environ.get('CRT_FX', '0') == '1'
 
 def lego_cells(raw_shades, display_gamma, shades_hex):
     """Lego-mosaic portrait: merge shade-grid column pairs into ~square cells,
@@ -298,7 +299,8 @@ def build(theme_file, t):
         ascii_ts = ascii_tspans(ascii_lines, shades, t['display_gamma'])
         portrait_inner = (f'<text x="15" y="28" fill="{t["fg"]}" class="ascii" font-size="8px" font-weight="bold">\n'
                           f'{ascii_ts}\n{reveal_anim(0.0, 0.7)}\n</text>')
-    crt_defs, crt_body = crt_overlays(t)
+    crt_defs, crt_body = crt_overlays(t) if CRT_FX else ('', '')
+    flicker = FLICKER if CRT_FX else ''
     # each info row is its own <text> so the HUD boot can reveal them in order;
     # the typewriter row (last) manages its own per-character timing instead
     row_texts = []
@@ -344,7 +346,7 @@ text, tspan {{white-space: pre;}}
 <animate attributeName="opacity" values="1;0.25;1" dur="2.6s" repeatCount="indefinite"/>
 </circle>
 <g id="portrait">
-{FLICKER}
+{flicker}
 {portrait_inner}
 </g>
 {crt_body}
