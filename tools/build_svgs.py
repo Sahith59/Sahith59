@@ -207,6 +207,55 @@ def info_lines():
     out.append(typewriter(nxt(), QUOTE_TEXT))
     return out
 
+# 'lego' (mosaic tiles, the live default) or 'ascii' (glyph portrait);
+# CRT overlays apply to both
+PORTRAIT_STYLE = os.environ.get('PORTRAIT_STYLE', 'lego')
+
+def lego_cells(raw_shades, display_gamma, shades_hex):
+    """Lego-mosaic portrait: merge shade-grid column pairs into ~square cells,
+    each drawn as a rounded tile with a lighter stud (21st.dev 'lego' mode)."""
+    out = []
+    rows = len(raw_shades)
+    for r in range(rows):
+        row = raw_shades[r]
+        for c in range(0, 74, 2):
+            pair = [v for v in row[c:c + 2] if v is not None]
+            if not pair:
+                continue
+            v = sum(pair) / len(pair)
+            level = min(7, int(((v / 255.0) ** display_gamma) * 8))
+            x = 15 + (c // 2) * 9.6
+            y = 15 + r * 9
+            tile = shades_hex[level]
+            stud = shades_hex[min(7, level + 1)]
+            out.append(f'<rect x="{x:.1f}" y="{y}" width="8.8" height="8.2" rx="1.5" fill="{tile}"/>')
+            out.append(f'<circle cx="{x + 4.4:.1f}" cy="{y + 4.1}" r="2.4" fill="{stud}" opacity="0.85"/>')
+    return '\n'.join(out)
+
+def crt_overlays(t):
+    """Recipe post-fx, SMIL edition: scanlines, CRT flicker is applied on the
+    portrait group; two clipped strips of the portrait jump sideways on long
+    staggered periods so the glitch never feels looped."""
+    line_color = '#000000' if t['bg'] != '#ffffff' else '#1f2328'
+    line_op = '0.32' if t['bg'] != '#ffffff' else '0.06'
+    return f'''<pattern id="scan" width="4" height="3" patternUnits="userSpaceOnUse">
+<rect y="2" width="4" height="1" fill="{line_color}" opacity="{line_op}"/>
+</pattern>
+<clipPath id="strip1"><rect x="8" y="212" width="370" height="12"/></clipPath>
+<clipPath id="strip2"><rect x="8" y="425" width="370" height="9"/></clipPath>''', f'''<rect x="8" y="10" width="372" height="{HEIGHT - 20}" fill="url(#scan)"/>
+<g clip-path="url(#strip1)"><use href="#portrait">
+<animateTransform attributeName="transform" type="translate" calcMode="discrete"
+values="0 0;-7 0;5 0;0 0" keyTimes="0;0.906;0.934;0.962" dur="9s" repeatCount="indefinite"/>
+</use></g>
+<g clip-path="url(#strip2)"><use href="#portrait">
+<animateTransform attributeName="transform" type="translate" calcMode="discrete"
+values="0 0;6 0;-4 0;0 0" keyTimes="0;0.937;0.958;0.981" dur="13s" repeatCount="indefinite"/>
+</use></g>'''
+
+FLICKER = ('<animate attributeName="opacity" '
+           'values="1;1;0.93;1;1;0.97;1;1" keyTimes="0;0.41;0.43;0.45;0.78;0.8;0.82;1" '
+           'dur="7s" begin="2s" repeatCount="indefinite"/>')
+
 def load_ascii(filename):
     with open(os.path.join(HERE, filename)) as f:
         lines = f.read().rstrip('\n').split('\n')
@@ -243,7 +292,13 @@ def build(theme_file, t):
     ascii_lines = load_ascii(t['ascii_file'])
     with open(os.path.join(HERE, 'ascii_shade.json')) as f:
         shades = json.load(f)
-    ascii_ts = ascii_tspans(ascii_lines, shades, t['display_gamma'])
+    if PORTRAIT_STYLE == 'lego':
+        portrait_inner = f'<g>{lego_cells(shades, t["display_gamma"], t["shades"])}\n{reveal_anim(0.0, 0.7)}</g>'
+    else:
+        ascii_ts = ascii_tspans(ascii_lines, shades, t['display_gamma'])
+        portrait_inner = (f'<text x="15" y="28" fill="{t["fg"]}" class="ascii" font-size="8px" font-weight="bold">\n'
+                          f'{ascii_ts}\n{reveal_anim(0.0, 0.7)}\n</text>')
+    crt_defs, crt_body = crt_overlays(t)
     # each info row is its own <text> so the HUD boot can reveal them in order;
     # the typewriter row (last) manages its own per-character timing instead
     row_texts = []
@@ -278,6 +333,7 @@ text, tspan {{white-space: pre;}}
 <stop offset="55%" stop-color="{t['accent']}" stop-opacity="{float(t['glow_opacity']) * 0.45:.3f}"/>
 <stop offset="100%" stop-color="{t['accent']}" stop-opacity="0"/>
 </radialGradient>
+{crt_defs}
 </defs>
 <rect x="0.5" y="0.5" width="984px" height="{HEIGHT - 1}px" fill="{t['bg']}" stroke="{t['cc']}" stroke-width="1" rx="15"/>
 <circle cx="192" cy="546" r="88" fill="url(#reactor)">
@@ -287,10 +343,11 @@ text, tspan {{white-space: pre;}}
 <circle cx="379" cy="24" r="3" fill="{t['accent']}">
 <animate attributeName="opacity" values="1;0.25;1" dur="2.6s" repeatCount="indefinite"/>
 </circle>
-<text x="15" y="28" fill="{t['fg']}" class="ascii" font-size="8px" font-weight="bold">
-{ascii_ts}
-{reveal_anim(0.0, 0.7)}
-</text>
+<g id="portrait">
+{FLICKER}
+{portrait_inner}
+</g>
+{crt_body}
 <g fill="{t['fg']}" font-weight="bold">
 {info_ts}
 </g>
